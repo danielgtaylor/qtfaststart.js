@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script type="text/javascript" src="qtfaststart.js"></script>
+    <script type="text/javascript">
+        QtFastStart.onChunkReady = function (file, current, total, data) {
+            alert("Got chunk!");
+        };
+        
+        function onSubmit() {
+            QtFastStart.process(document.getElementById("files").files[0]);
+            return false;
+        }
+    </script>
+</head>
+<body>
+    <form method="POST" enctype="multipart/form-data" action="">
+        <input id="files" type="file" name="myfile" />
+        <br/>
+        <input type="submit" onClick="return onSubmit();"/>
+    </form>
+</body>
+</html>
