@@ -21,13 +21,13 @@ Usage
 -----
 Below is an example of how to use this code:
 
-  <script type="text/javascript" src="qtfaststart.js"></script>
-  <script type="text/javascript">
-    QtFastStart.onChunkReady = function (file, current, total, data) {
-      alert("Got chunk " + current + " of " + total + " (" + data.length + " bytes)");
-    }
-  </script>
-  <input type="file" onChange="QtFastStart.process(this);">
+    <script type="text/javascript" src="qtfaststart.js"></script>
+    <script type="text/javascript">
+      QtFastStart.onChunkReady = function (file, current, total, data) {
+        alert("Got chunk " + current + " of " + total + " (" + data.length + " bytes)");
+      }
+    </script>
+    <input type="file" onChange="QtFastStart.process(this);">
 
 Authors
 -------
