@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import base64
 import web
 
 urls = (
@@ -15,7 +16,7 @@ class UploadTest:
         return template
 
     def POST(self):
-        filedata = web.webapi.data()
+        filedata = base64.decodestring(web.webapi.data())
         print len(filedata)
         open("uploaded.mp4", "wb").write(filedata)
         
