@@ -224,11 +224,10 @@ QtFastStart = function () {
             
             // Start writing chunks and processing the file!
             QtFastStart.onLog(file, "Starting to write chunks...");
-            file.readBlob(ftyp.pos, ftyp.pos + ftyp.len, function (file, start, end, data) {
+            file.readBlob(ftyp.pos, ftyp.pos + ftyp.len - 1, function (file, start, end, data) {
                 QtFastStart.onChunkReady(file, 1, totalChunks, data);
                 
-                file.readBlob(moov.pos, moov.pos + moov.len, function (file, start, end, data) {
-                            
+                file.readBlob(moov.pos, moov.pos + moov.len - 1, function (file, start, end, data) {
                     processMoov(file, start, end, data, totalChunks);
                     copyChunks(file, index, totalChunks, Math.max(1, limit - ftyp.len - moov.len));
                 });
@@ -250,7 +249,12 @@ QtFastStart = function () {
         
         offset = offset || 8;
         
-        var newAtoms = data.substr(offset - 8, 8);
+        var newAtoms = '';
+        
+        if (offset == 8) {
+            // Copy moov type & size
+            newAtoms = data.substr(offset - 8, 8);
+        }
         
         do {
             var atom = readAtomFromBuffer(data, pos + offset);
@@ -258,23 +262,23 @@ QtFastStart = function () {
             if (atom.len) {
                 if (atom.type in {"trak":'', "mdia":'', "minf":'', "stbl":''}) {
                     // Process the container atoms
-                    newAtoms += processMoov(file, start, end, data, totalChunks, pos + offset + 8, atom.len - 8);
+                    newAtoms += data.substr(pos + offset, 8) + processMoov(file, start, end, data, totalChunks, pos + offset + 8, atom.len - 8);
                 } else if (atom.type in {"stco":'', "co64":''}) {
                     // Process the packet offset atoms
                     var version = data.substr(pos + offset + 8, 4).asUInt32BE();
                     var entryCount = data.substr(pos + offset + 12, 4).asUInt32BE();
                     // Copy over size, type, version, entry count
-                    newAtoms += data.substr(pos + offset - 8, 16);
+                    newAtoms += data.substr(pos + offset, 16);
                     
                     QtFastStart.onLog(file, "Patching " + entryCount + " entries");
                     
                     for (var x = 0; x < entryCount; x++) {
-                        var value = data.substr(pos + offset + 12 + (x * 4), 4).asUInt32BE();
+                        var value = data.substr(pos + offset + 16 + (x * 4), 4).asUInt32BE();
                         newAtoms += (value + moovSize).asUInt32BEString();
                     }
                 } else {
                     // Just copy the atom
-                    newAtoms += data.substr(pos + offset - 8, atom.len);
+                    newAtoms += data.substr(pos + offset, atom.len);
                 }
                 
                 pos += atom.len;
@@ -282,7 +286,7 @@ QtFastStart = function () {
         } while (pos < stop && atom.len);
         
         if (offset == 8) {
-            // Outer layer of recursive call
+            // Outermost layer of recursive call, send events!
             QtFastStart.onChunkReady(file, 2, totalChunks, newAtoms);
         } else {
             return newAtoms;
@@ -296,27 +300,36 @@ QtFastStart = function () {
     function copyChunks(file, index, totalChunks, limit) {
         var chunks = 3;
         
-        for (var x = 0; x < index.length; x++) {
-            var atom = index[x];
+        var x = 0;
+        var atom = index[x];
+        
+        function _callback(file, start, end, data) {
+            QtFastStart.onChunkReady(file, chunks, totalChunks, data);
+            chunks += 1;
             
-            // Skip ftyp and moov atoms, copy the rest
-            if (!(atom.type in {"ftyp":'', "moov":''})) {
-                var start = chunks;
-                
-                function _callback(file, start, end, data) {
-                    QtFastStart.onChunkReady(file, chunks, totalChunks, data);
-                    chunks += 1;
-                    
-                    var pos = end + 1;
-                    if (pos < atom.pos + atom.len) {
-                        // Copy next chunk
-                        file.readBlob(pos, (atom.len - pos < QtFastStart.chunkSize) ? (pos + (atom.len % QtFastStart.chunkSize)) : (pos + QtFastStart.chunkSize), _callback);
-                    }
+            if (end == atom.pos + atom.len - 1 && chunks <= totalChunks) {
+                // Get the next atom to copy!
+                do {
+                    x += 1;
+                    atom = index[x];
+                } while (x < index.length && (atom.type in {"ftyp":'', "moov":''}))
+            }
+            
+            if (x < index.length) {
+                var pos = end + 1;
+                if (pos < atom.pos + atom.len) {
+                    // Copy next chunk
+                    file.readBlob(pos, ((atom.len - pos < QtFastStart.chunkSize) ? (pos + atom.len) : (pos + QtFastStart.chunkSize)) - 1, _callback);
                 }
-                
-                file.readBlob(atom.pos, atom.pos + (atom.len > QtFastStart.chunkSize) ? QtFastStart.chunkSize : (atom.len % QtFastStart.chunkSize), _callback);
             }
         }
+        
+        while (x < index.length && (atom.type in {"ftyp":'', "moov":''})) {
+            x += 1;
+            atom = index[x];
+        }
+        
+        file.readBlob(atom.pos, atom.pos + ((atom.len > QtFastStart.chunkSize) ? QtFastStart.chunkSize : atom.len) - 1, _callback);
     }
     
     /*

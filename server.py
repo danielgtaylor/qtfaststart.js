@@ -15,9 +15,9 @@ class UploadTest:
         return template
 
     def POST(self):
-        data = web.input()
-        
-        open("uploaded.mp4", "w").write(data.myfile)
+        filedata = web.webapi.data()
+        print len(filedata)
+        open("uploaded.mp4", "wb").write(filedata)
         
         raise web.seeother('/')
 

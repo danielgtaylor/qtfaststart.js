@@ -3,8 +3,18 @@
 <head>
     <script type="text/javascript" src="qtfaststart.js"></script>
     <script type="text/javascript">
+        var output = "";
+        
         QtFastStart.onChunkReady = function (file, current, total, data) {
-            alert("Got chunk!");
+            alert("Got chunk " + current + " of " + total + "! Size: " + data.length);
+            output += data;
+            if (current == total) {
+                alert("Sending file (" + output.length + " bytes)...");
+                // We are done, send the file
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', '/', true);
+                xhr.send(output);
+            }
         };
         
         function onSubmit() {
