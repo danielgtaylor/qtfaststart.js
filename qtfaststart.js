@@ -345,7 +345,7 @@ QtFastStart = function () {
     }
     
     return {
-        "version": "1.0 beta",
+        "version": "1.0",
         "chunkSize": 5 * 1024 * 1024,
         "getIndex": getIndex,
         "process": process,
