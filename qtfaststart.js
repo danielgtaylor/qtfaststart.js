@@ -183,7 +183,8 @@ QtFastStart = function () {
         var index;
         
         getIndex(file, function (file, index) {
-            var mdatFound = false;
+            var moovPos = 0;
+            var mdatPos = 0;
             var ftyp = null;
             var moov = null;
             var moovData = null;
@@ -197,15 +198,11 @@ QtFastStart = function () {
                     ftyp = atom;
                 } else if (atom.type == "mdat") {
                     QtFastStart.onLog(file, "Found mdat atom!");
-                    mdatFound = true;
+                    mdatPos = x;
                 } else if (atom.type == "moov") {
                     QtFastStart.onLog(file, "Found moov atom!");
-                    if (!mdatFound) {
-                        QtFastStart.onError(file, "File appears to already be setup for streaming");
-                        return;
-                    } else {
-                        moov = atom;
-                    }
+                    moovPos = x;
+                    moov = atom;
                 }
                 
                 // Calculate total number of chunks to be written
@@ -227,7 +224,11 @@ QtFastStart = function () {
                 QtFastStart.onChunkReady(file, 1, totalChunks, data);
                 
                 file.readBlob(moov.pos, moov.pos + moov.len, function (file, start, end, data) {
-                    processMoov(file, start, end, data, totalChunks);
+                    if (moovPos > mdatPos) {
+                        processMoov(file, start, end, data, totalChunks);
+                    } else {
+                        QtFastStart.onChunkReady(file, 2, totalChunks, data);
+                    }
                     copyChunks(file, index, totalChunks, Math.max(1, limit - ftyp.len - moov.len));
                 });
             });
