@@ -65,7 +65,7 @@
 */
 File.prototype.readBlob = function (startByte, endByte, onComplete, onError) {
     var start = startByte || 0;
-    var end = endByte || this.size - 1;
+    var end = endByte || this.size;
     var file = this;
     var reader = new FileReader();
     
@@ -103,8 +103,7 @@ File.prototype.readBlob = function (startByte, endByte, onComplete, onError) {
         onError(file, reason);
     }
     
-    var len = (end - start) + 1;
-    var blob = this.slice(start, len);
+    var blob = this.slice(start, end);
     
     reader.readAsBinaryString(blob);
 };
@@ -184,7 +183,8 @@ QtFastStart = function () {
         var index;
         
         getIndex(file, function (file, index) {
-            var mdatFound = false;
+            var moovPos = 0;
+            var mdatPos = 0;
             var ftyp = null;
             var moov = null;
             var moovData = null;
@@ -198,15 +198,11 @@ QtFastStart = function () {
                     ftyp = atom;
                 } else if (atom.type == "mdat") {
                     QtFastStart.onLog(file, "Found mdat atom!");
-                    mdatFound = true;
+                    mdatPos = x;
                 } else if (atom.type == "moov") {
                     QtFastStart.onLog(file, "Found moov atom!");
-                    if (!mdatFound) {
-                        QtFastStart.onError(file, "File appears to already be setup for streaming");
-                        return;
-                    } else {
-                        moov = atom;
-                    }
+                    moovPos = x;
+                    moov = atom;
                 }
                 
                 // Calculate total number of chunks to be written
@@ -224,11 +220,15 @@ QtFastStart = function () {
             
             // Start writing chunks and processing the file!
             QtFastStart.onLog(file, "Starting to write chunks...");
-            file.readBlob(ftyp.pos, ftyp.pos + ftyp.len - 1, function (file, start, end, data) {
+            file.readBlob(ftyp.pos, ftyp.pos + ftyp.len, function (file, start, end, data) {
                 QtFastStart.onChunkReady(file, 1, totalChunks, data);
                 
-                file.readBlob(moov.pos, moov.pos + moov.len - 1, function (file, start, end, data) {
-                    processMoov(file, start, end, data, totalChunks);
+                file.readBlob(moov.pos, moov.pos + moov.len, function (file, start, end, data) {
+                    if (moovPos > mdatPos) {
+                        processMoov(file, start, end, data, totalChunks);
+                    } else {
+                        QtFastStart.onChunkReady(file, 2, totalChunks, data);
+                    }
                     copyChunks(file, index, totalChunks, Math.max(1, limit - ftyp.len - moov.len));
                 });
             });
@@ -319,7 +319,7 @@ QtFastStart = function () {
                 var pos = end + 1;
                 if (pos < atom.pos + atom.len) {
                     // Copy next chunk
-                    file.readBlob(pos, ((atom.len - pos < QtFastStart.chunkSize) ? (pos + atom.len) : (pos + QtFastStart.chunkSize)) - 1, _callback);
+                    file.readBlob(pos, ((atom.len - pos < QtFastStart.chunkSize) ? (pos + atom.len) : (pos + QtFastStart.chunkSize)), _callback);
                 }
             }
         }
@@ -329,7 +329,7 @@ QtFastStart = function () {
             atom = index[x];
         }
         
-        file.readBlob(atom.pos, atom.pos + ((atom.len > QtFastStart.chunkSize) ? QtFastStart.chunkSize : atom.len) - 1, _callback);
+        file.readBlob(atom.pos, atom.pos + ((atom.len > QtFastStart.chunkSize) ? QtFastStart.chunkSize : atom.len), _callback);
     }
     
     /*
